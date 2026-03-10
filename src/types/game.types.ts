@@ -10,8 +10,8 @@ export type RoomStatus = "waiting" | "playing";
 
 export interface Room {
   code: string;
-  host: Player;
-  guest: Player | null;
+  host: Player; //Jugador que crea la sala
+  guest: Player | null; //Jugador que se une
   status: RoomStatus;
 }
 
@@ -21,7 +21,7 @@ export type ClientMessage =
     }
   | {
       type: "join_room";
-      code: string;
+      code: string; //codigo de la sala para unirse
     };
 
 export type ServerMessage =

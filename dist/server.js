@@ -13,14 +13,14 @@ wss.on("connection", (socket) => {
     console.log("Cliente conectado por WebSocket");
     socket.send(JSON.stringify({
         type: "connection",
-        message: "Connected to server"
+        message: "Connected to server",
     }));
     socket.on("message", (data) => {
         const message = data.toString();
         console.log("Message received", message);
         socket.send(JSON.stringify({
             type: "echo",
-            message: `El servidor recibió: ${message}`
+            message: `El servidor recibió: ${message}`,
         }));
     });
     socket.on("close", () => {

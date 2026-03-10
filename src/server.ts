@@ -14,8 +14,8 @@ wss.on("connection", (socket: WebSocket) => {
   socket.send(
     JSON.stringify({
       type: "connection",
-      message: "Connected to server"
-    })
+      message: "Connected to server",
+    }),
   );
 
   socket.on("message", (data) => {
@@ -26,8 +26,8 @@ wss.on("connection", (socket: WebSocket) => {
     socket.send(
       JSON.stringify({
         type: "echo",
-        message: `El servidor recibió: ${message}`
-      })
+        message: `El servidor recibió: ${message}`,
+      }),
     );
   });
 
