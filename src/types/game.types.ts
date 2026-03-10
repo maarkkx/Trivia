@@ -1,5 +1,3 @@
-// src/types/game.types.ts
-
 import type { WebSocket } from "ws";
 
 export interface Player {
