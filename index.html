@@ -1,11 +1,105 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Trivia Online</title>
+    <link rel="stylesheet" href="public/css/styles.css">
 </head>
+
 <body>
-    
+    <div class="app">
+
+        <!-- MENU -->
+        <section id="menuScreen" class="screen active">
+            <div class="card menu-card">
+                <h1>Trivia Online</h1>
+                <p class="subtitle">Create a room or join with a code</p>
+
+                <label for="playerName">Your name</label>
+                <input id="playerName" type="text" maxlength="16" placeholder="Enter your name" required />
+
+                <div class="menu-actions">
+                    <button id="createRoomBtn" class="btn btn-primary">Create room</button>
+                </div>
+
+                <div class="separator">or</div>
+
+                <label for="roomCodeInput">Room code</label>
+                <div class="join-row">
+                    <input id="roomCodeInput" type="text" maxlength="8" placeholder="e.g. AB12CD" />
+                    <button id="joinRoomBtn" class="btn btn-secondary">Join</button>
+                </div>
+
+                <p id="menuError" class="error-text"></p>
+            </div>
+        </section>
+
+        <!-- LOBBY -->
+        <section id="lobbyScreen" class="screen">
+            <div class="card lobby-card">
+                <h2>Room created</h2>
+                <p>Share this code with your opponent:</p>
+                <div id="roomCodeBox" class="room-code">------</div>
+
+                <p id="lobbyStatus" class="subtitle">Waiting for the other player...</p>
+
+                <button id="backToMenuBtn" class="btn btn-ghost">Back to menu</button>
+            </div>
+        </section>
+
+        <!-- GAME -->
+        <section id="gameScreen" class="screen">
+            <div class="game-layout">
+
+                <!-- OPPONENT PANEL -->
+                <aside class="opponent-panel card">
+                    <h3>Opponent</h3>
+                    <p id="opponentName">Waiting...</p>
+                    <div id="opponentProgress" class="progress-grid"></div>
+                </aside>
+
+                <!-- MAIN AREA -->
+                <main class="main-panel">
+                    <div class="question-card card">
+                        <span class="question-label">Question</span>
+                        <h2 id="questionText">
+                            Waiting for question...
+                        </h2>
+                    </div>
+
+                    <div class="board-card card">
+                        <h3>Your board</h3>
+                        <div id="playerProgress" class="big-progress-grid"></div>
+                        <p class="progress-text">
+                            Correct: <span id="scoreText">0</span> / 8
+                        </p>
+                    </div>
+
+                    <div class="answers-card card">
+                        <p id="cooldownText" class="cooldown hidden"></p>
+
+                        <div class="answers-grid">
+                            <button class="answer-btn" data-index="0">Answer 1</button>
+                            <button class="answer-btn" data-index="1">Answer 2</button>
+                            <button class="answer-btn" data-index="2">Answer 3</button>
+                            <button class="answer-btn" data-index="3">Answer 4</button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <!-- END MODAL -->
+        <div id="endModal" class="modal hidden">
+            <div class="modal-content card">
+                <h2 id="endTitle">You won!</h2>
+                <p id="endMessage">The game has ended.</p>
+                <button id="endGoMenuBtn" class="btn btn-primary">Back to menu</button>
+            </div>
+        </div>
+    </div>
+    <script src="dist/client/app.js"></script>
 </body>
-</html>
+</html> 
