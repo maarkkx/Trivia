@@ -46,7 +46,9 @@ function connectSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         return;
     }
-    ws = new WebSocket("ws://localhost:3000");
+    const socketProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socketUrl = `${socketProtocol}//${window.location.host}`;
+    ws = new WebSocket(socketUrl);
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
