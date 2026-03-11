@@ -5,12 +5,10 @@ exports.getRoomByCode = getRoomByCode;
 exports.joinRoom = joinRoom;
 exports.getOpponent = getOpponent;
 exports.removePlayerFromRoom = removePlayerFromRoom;
-exports.removeRoom = removeRoom;
+exports.resetPlayerAnswers = resetPlayerAnswers;
 const rooms = new Map();
 const ROOM_CODE_LENGTH = 6;
-//caracteres permitidos
 const ROOM_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-//generar un codigo random
 function generateRoomCode() {
     let code = "";
     for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
@@ -19,7 +17,6 @@ function generateRoomCode() {
     }
     return code;
 }
-//evitar que hayan codigos replciados
 function generateUniqueRoomCode() {
     let code = generateRoomCode();
     while (rooms.has(code)) {
@@ -34,10 +31,13 @@ function createRoom(host) {
         host,
         guest: null,
         status: "waiting",
+        currentQuestionIndex: 0,
+        questionsAsked: 0,
+        host_answered: false,
+        guest_answered: false,
     };
-    //guardamos el codigo dentro del player
     host.roomCode = code;
-    //añadimos la room con el code
+    host.score = 0;
     rooms.set(code, room);
     return room;
 }
@@ -49,21 +49,19 @@ function joinRoom(code, guest) {
     if (!room) {
         return null;
     }
-    //si ya hay 2 jugadores devuelve null
     if (room.guest) {
         return null;
     }
     room.guest = guest;
     room.status = "playing";
     guest.roomCode = code;
+    guest.score = 0;
     return room;
 }
 function getOpponent(room, playerId) {
-    //si lo pide el host le damos la id del que se une a la sala
     if (room.host.id === playerId) {
         return room.guest;
     }
-    //aqui al reves
     if (room.guest && room.guest.id === playerId) {
         return room.host;
     }
@@ -73,29 +71,25 @@ function removePlayerFromRoom(player) {
     if (!player.roomCode) {
         return null;
     }
-    //miramos si el jugador tiene una room asignada
     const room = rooms.get(player.roomCode);
     if (!room) {
         player.roomCode = null;
         return null;
     }
     if (room.host.id === player.id) {
-        rooms.delete(room.code);
-        if (room.guest) {
-            room.guest.roomCode = null;
-        }
-        player.roomCode = null;
+        room.status = "finished";
+        rooms.delete(player.roomCode);
         return room;
     }
     if (room.guest && room.guest.id === player.id) {
-        room.guest = null;
-        room.status = "waiting";
-        player.roomCode = null;
+        room.status = "finished";
+        rooms.delete(player.roomCode);
         return room;
     }
     player.roomCode = null;
     return null;
 }
-function removeRoom(code) {
-    rooms.delete(code);
+function resetPlayerAnswers(room) {
+    room.host_answered = false;
+    room.guest_answered = false;
 }

@@ -4,15 +4,31 @@ export interface Player {
   id: string;
   socket: WebSocket;
   roomCode: string | null;
+  name?: string;
+  score: number;
+  answered?: boolean;
 }
 
-export type RoomStatus = "waiting" | "playing";
+export type RoomStatus = "waiting" | "playing" | "finished";
 
 export interface Room {
   code: string;
   host: Player; //Jugador que crea la sala
   guest: Player | null; //Jugador que se une
   status: RoomStatus;
+  currentQuestionIndex: number;
+  hostCorrectAnswer?: string;
+  guestCorrectAnswer?: string;
+  questionsAsked: number;
+  host_answered?: boolean;
+  guest_answered?: boolean;
+}
+
+export interface TriviaQuestion {
+  question: string;
+  correctAnswer: string;
+  incorrectAnswers: string[];
+  allAnswers: string[];
 }
 
 export type ClientMessage =
@@ -21,7 +37,14 @@ export type ClientMessage =
     }
   | {
       type: "join_room";
-      code: string; //codigo de la sala para unirse
+      code: string;
+    }
+  | {
+      type: "answer";
+      answerIndex: number;
+    }
+  | {
+      type: "leave_room";
     };
 
 export type ServerMessage =
@@ -40,6 +63,27 @@ export type ServerMessage =
   | {
       type: "player_joined";
       playerId: string;
+    }
+  | {
+      type: "game_start";
+      question: string;
+      answers: string[];
+    }
+  | {
+      type: "new_question";
+      question: string;
+      answers: string[];
+    }
+  | {
+      type: "answer_result";
+      correct: boolean;
+      playerScore: number;
+      opponentScore: number;
+    }
+  | {
+      type: "game_over";
+      winner: "you" | "opponent";
+      message: string;
     }
   | {
       type: "opponent_left";

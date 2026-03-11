@@ -10,6 +10,7 @@ function getById(id) {
 const menuScreen = getById("menuScreen");
 const lobbyScreen = getById("lobbyScreen");
 const gameScreen = getById("gameScreen");
+const playerNameInput = getById("playerName");
 const roomCodeInput = getById("roomCodeInput");
 const menuError = getById("menuError");
 const createRoomBtn = getById("createRoomBtn");
@@ -29,11 +30,10 @@ const endMessage = getById("endMessage");
 const endGoMenuBtn = getById("endGoMenuBtn");
 const answerButtons = Array.from(document.querySelectorAll(".answer-btn"));
 /* =========================================================
-   DEMO LOCAL
-   Aquest banc de preguntes només existeix per poder provar el joc
-   en local, sense servidor ni connexions reals.
+   PREGUNTES DE RECANVI (si el backend no les envia)
+   Si el servidor no proporciona preguntes, es fan servir aquestes.
    ========================================================= */
-const DEMO_QUESTIONS = [
+const FALLBACK_QUESTIONS = [
     {
         question: "¿Cuál es la capital de Italia?",
         answers: ["Roma", "Milán", "Nápoles", "Turín"],
@@ -78,6 +78,8 @@ const DEMO_QUESTIONS = [
 // Estat únic del client: cada canvi aquí es reflecteix després a la UI.
 const state = {
     roomCode: "",
+    playerName: "",
+    playerId: "",
     playerScore: 0,
     opponentScore: 0,
     opponentLabel: "Rival",
@@ -85,10 +87,11 @@ const state = {
     answers: [],
     currentQuestionIndex: 0,
     locked: false,
-    gameEnded: false
+    gameEnded: false,
+    gameStarted: false
 };
+let ws = null;
 let cooldownInterval = null;
-let opponentInterval = null;
 let pendingTimeouts = [];
 // Guardem els timeouts actius per poder netejar-los en sortir de la partida.
 function scheduleTimeout(callback, delay) {
@@ -98,19 +101,43 @@ function scheduleTimeout(callback, delay) {
     }, delay);
     pendingTimeouts.push(timeoutId);
 }
-// Cancel·la tots els timeouts pendents de la simulació o de la UI.
+// Cancel·la tots els timeouts pendents.
 function clearPendingTimeouts() {
     pendingTimeouts.forEach((id) => window.clearTimeout(id));
     pendingTimeouts = [];
 }
-// Genera un codi de sala fals per a les proves locals.
-function generateRoomCode(length = 6) {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < length; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+// Connecta amb el servidor WebSocket real.
+function connectSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN)
+        return;
+    ws = new WebSocket("ws://localhost:3000");
+    ws.onopen = () => {
+        console.log("Conectado al servidor real en localhost:3000");
+    };
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleServerMessage(data);
+        }
+        catch (error) {
+            console.error("Error al parsear mensaje del servidor:", error);
+        }
+    };
+    ws.onclose = () => {
+        console.log("Desconectado del servidor");
+        ws = null;
+    };
+    ws.onerror = (error) => {
+        console.error("Error de WebSocket:", error);
+    };
+}
+// Envia un missatge al servidor.
+function sendMessage(payload) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("WebSocket no conectado");
+        return;
     }
-    return code;
+    ws.send(JSON.stringify(payload));
 }
 // Mostra només la pantalla indicada i amaga la resta.
 function showScreen(screen) {
@@ -119,11 +146,11 @@ function showScreen(screen) {
     });
     screen.classList.add("active");
 }
-// Escriu un missatge d'error sota el formulari del menú.
+// Escriu un missatge d'error.
 function setError(message) {
     menuError.textContent = message;
 }
-// Dibuixa els 8 quesets del marcador; els encerts es marquen com a plens.
+// Dibuixa els 8 quesets del marcador.
 function createWedges(container, count) {
     container.innerHTML = "";
     for (let i = 0; i < 8; i++) {
@@ -139,13 +166,13 @@ function updateBoard() {
     createWedges(opponentProgress, state.opponentScore);
     scoreText.textContent = String(state.playerScore);
     opponentName.textContent = state.opponentLabel;
-    questionText.textContent = state.currentQuestion || "Esperando pregunta...";
+    questionText.textContent = state.currentQuestion || "Waiting for question...";
     answerButtons.forEach((btn, index) => {
-        btn.textContent = state.answers[index] || `Respuesta ${index + 1}`;
+        btn.textContent = state.answers[index] || `Answer ${index + 1}`;
         btn.disabled = state.locked || state.gameEnded || !state.answers[index];
     });
 }
-// Atura el compte enrere si estava actiu i amaga l'avís.
+// Atura el compte enrere.
 function stopCooldown() {
     if (cooldownInterval !== null) {
         window.clearInterval(cooldownInterval);
@@ -159,7 +186,7 @@ function setCooldown(seconds) {
     stopCooldown();
     state.locked = true;
     cooldownText.classList.remove("hidden");
-    cooldownText.textContent = `Has fallado. Espera ${seconds}s para responder otra vez.`;
+    cooldownText.textContent = `You answered wrong. Wait ${seconds}s to answer again.`;
     updateBoard();
     let remaining = seconds;
     cooldownInterval = window.setInterval(() => {
@@ -170,235 +197,230 @@ function setCooldown(seconds) {
             updateBoard();
             return;
         }
-        cooldownText.textContent = `Has fallado. Espera ${remaining}s para responder otra vez.`;
+        cooldownText.textContent = `You answered wrong. Wait ${remaining}s to answer again.`;
     }, 1000);
-}
-// DEMO LOCAL: en aquest mode el rival és simulat, així que aquest interval s'ha de poder tallar.
-function stopOpponentSimulation() {
-    if (opponentInterval !== null) {
-        window.clearInterval(opponentInterval);
-        opponentInterval = null;
-    }
-}
-/* DEMO LOCAL:
-   Aquest bloc simula un rival que, de tant en tant, encerta preguntes.
-   Serveix perquè la partida sigui jugable en local sense backend. */
-function startOpponentSimulation() {
-    stopOpponentSimulation();
-    opponentInterval = window.setInterval(() => {
-        if (state.gameEnded)
-            return;
-        const shouldAdvance = Math.random() < 0.4;
-        if (!shouldAdvance)
-            return;
-        state.opponentScore = Math.min(8, state.opponentScore + 1);
-        updateBoard();
-        if (state.opponentScore >= 8) {
-            onGameOver({
-                winner: "opponent",
-                message: "El rival ha conseguido los 8 quesitos antes que tú."
-            });
-        }
-    }, 4500);
 }
 function showEndModal(title, message) {
     state.gameEnded = true;
     state.locked = true;
-    stopOpponentSimulation();
     stopCooldown();
     updateBoard();
     endTitle.textContent = title;
     endMessage.textContent = message;
     endModal.classList.remove("hidden");
 }
-// Torna tota la UI a l'estat inicial, com quan s'obre l'app per primer cop.
+// Torna tota la UI a l'estat inicial.
 function resetState() {
     state.roomCode = "";
+    state.playerName = "";
+    state.playerId = "";
     state.playerScore = 0;
     state.opponentScore = 0;
-    state.opponentLabel = "Rival";
+    state.opponentLabel = "Opponent";
     state.currentQuestion = "";
     state.answers = [];
     state.currentQuestionIndex = 0;
     state.locked = false;
     state.gameEnded = false;
+    state.gameStarted = false;
     roomCodeBox.textContent = "------";
-    lobbyStatus.textContent = "Esperando al otro jugador...";
+    lobbyStatus.textContent = "Waiting for the other player...";
     roomCodeInput.value = "";
+    playerNameInput.value = "";
     endModal.classList.add("hidden");
     clearPendingTimeouts();
-    stopOpponentSimulation();
     stopCooldown();
     updateBoard();
 }
 function goToMenu() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        sendMessage({ type: "leave_room" });
+    }
     resetState();
     setError("");
     showScreen(menuScreen);
 }
-// DEMO LOCAL: llegeix la pregunta actual del banc de proves local.
-function getCurrentDemoQuestion() {
-    return DEMO_QUESTIONS[state.currentQuestionIndex] || null;
+// Valida el nom del jugador.
+function validateName() {
+    const name = playerNameInput.value.trim();
+    if (!name) {
+        setError("You must enter your name.");
+        return null;
+    }
+    return name;
 }
-// DEMO LOCAL: carrega la pregunta actual a la interfície.
-function loadCurrentDemoQuestion() {
-    const current = getCurrentDemoQuestion();
-    if (!current) {
-        onGameOver({
-            winner: "you",
-            message: "Has respondido todas las preguntas de la demo."
-        });
+// Gestiona els missatges del servidor.
+function handleServerMessage(data) {
+    console.log("Mensaje del servidor:", data);
+    switch (data.type) {
+        case "connected":
+            state.playerId = data.playerId;
+            console.log("Tu ID:", state.playerId);
+            break;
+        case "room_created":
+            state.roomCode = data.code;
+            roomCodeBox.textContent = data.code;
+            lobbyStatus.textContent = "Waiting for the other player...";
+            showScreen(lobbyScreen);
+            break;
+        case "room_joined":
+            state.roomCode = data.code;
+            roomCodeBox.textContent = data.code;
+            lobbyStatus.textContent = "Joined! Waiting for the game to start...";
+            showScreen(lobbyScreen);
+            break;
+        case "player_joined":
+            lobbyStatus.textContent = "Opponent joined! Starting game soon...";
+            break;
+        case "game_start":
+            state.gameStarted = true;
+            onGameStart({
+                question: data.question,
+                answers: data.answers
+            });
+            break;
+        case "new_question":
+            state.locked = false;
+            state.currentQuestion = data.question;
+            state.answers = data.answers;
+            updateBoard();
+            break;
+        case "answer_result":
+            if (data.correct) {
+                state.playerScore = data.playerScore;
+                state.opponentScore = data.opponentScore;
+                updateBoard();
+            }
+            else {
+                setCooldown(5);
+                state.playerScore = data.playerScore;
+                state.opponentScore = data.opponentScore;
+            }
+            break;
+        case "game_over":
+            showEndModal(data.winner === "you" ? "You Won!" : "You Lost", data.message || "The game has ended.");
+            break;
+        case "opponent_left":
+            showEndModal("Opponent Left", "Your opponent has disconnected.");
+            break;
+        case "error":
+            setError(data.message || "An error occurred.");
+            break;
+        default:
+            console.log("Unknown message type:", data.type);
+    }
+}
+// Inicia la partida con preguntas del servidor
+function onGameStart(payload) {
+    state.opponentLabel = payload.opponentLabel || "Opponent";
+    state.playerScore = payload.playerScore || 0;
+    state.opponentScore = payload.opponentScore || 0;
+    state.gameEnded = false;
+    state.gameStarted = true;
+    state.locked = false;
+    state.currentQuestionIndex = 0;
+    // Usar la pregunta del servidor si viene, si no usar fallback
+    if (payload.question && payload.answers) {
+        state.currentQuestion = payload.question;
+        state.answers = payload.answers;
+    }
+    else {
+        loadNextQuestion();
+    }
+    updateBoard();
+    showScreen(gameScreen);
+}
+// Carga la siguiente pregunta (de momento, usando fallback local)
+function loadNextQuestion() {
+    if (state.currentQuestionIndex >= FALLBACK_QUESTIONS.length) {
+        showEndModal("Game Over", `You scored ${state.playerScore} / ${FALLBACK_QUESTIONS.length}`);
         return;
     }
-    state.currentQuestion = current.question;
-    state.answers = [...current.answers];
+    const question = FALLBACK_QUESTIONS[state.currentQuestionIndex];
+    state.currentQuestion = question.question;
+    state.answers = question.answers;
+    state.correctIndex = question.correctIndex;
+    state.locked = false;
     updateBoard();
 }
-/* DEMO LOCAL:
-   Inicia una partida falsa en local. No hi ha cap servidor: tot surt
-   del banc de preguntes i de les simulacions definides en aquest fitxer. */
-function startDemoGame() {
-    state.playerScore = 0;
-    state.opponentScore = 0;
-    state.currentQuestionIndex = 0;
-    state.gameEnded = false;
-    state.locked = false;
-    state.opponentLabel = "Rival";
-    loadCurrentDemoQuestion();
-    showScreen(gameScreen);
-    startOpponentSimulation();
-}
-// DEMO LOCAL: comprova la resposta contra la pregunta actual i avança la partida de prova.
+// Envia una resposta al servidor
 function submitAnswer(answerIndex) {
     if (state.locked || state.gameEnded)
         return;
-    const current = getCurrentDemoQuestion();
-    if (!current)
-        return;
-    if (answerIndex === current.correctIndex) {
-        state.locked = true;
-        state.playerScore = Math.min(8, state.playerScore + 1);
-        updateBoard();
-        if (state.playerScore >= 8) {
+    state.locked = true;
+    // Validar localmente primero antes de enviar
+    if (state.gameStarted && state.answers[answerIndex]) {
+        // Enviar respuesta al servidor
+        sendMessage({
+            type: "answer",
+            answerIndex: answerIndex
+        });
+    }
+    else {
+        // Si no estamos en juego, usar lógica local de fallback
+        if (answerIndex === state.correctIndex) {
+            state.playerScore = Math.min(8, state.playerScore + 1);
+            updateBoard();
+            if (state.playerScore >= 8) {
+                scheduleTimeout(() => {
+                    showEndModal("You Won!", "You got 8 correct answers!");
+                }, 500);
+                return;
+            }
+            state.currentQuestionIndex += 1;
             scheduleTimeout(() => {
-                onGameOver({
-                    winner: "you",
-                    message: "Has conseguido los 8 quesitos."
-                });
-            }, 500);
+                loadNextQuestion();
+            }, 700);
             return;
         }
-        state.currentQuestionIndex += 1;
-        scheduleTimeout(() => {
-            state.locked = false;
-            loadCurrentDemoQuestion();
-        }, 700);
-        return;
+        setCooldown(5);
     }
-    setCooldown(5);
 }
-/* =========================================================
-  INTEGRACIÓ REAL
-  Aquestes funcions estan preparades perquè més endavant el backend
-  o el teu company puguin controlar la UI amb dades reals.
-   ========================================================= */
-// El servidor real podria cridar això quan la sala s'hagi creat correctament.
-function onRoomCreated(code) {
-    state.roomCode = code;
-    roomCodeBox.textContent = code;
-    lobbyStatus.textContent = "Esperando al otro jugador...";
-    showScreen(lobbyScreen);
-}
-// El servidor real podria cridar això quan l'usuari entri a una sala existent.
-function onRoomJoined(code) {
-    state.roomCode = code;
-    roomCodeBox.textContent = code;
-    lobbyStatus.textContent = `Te has unido a la sala ${code}. Esperando partida...`;
-    showScreen(lobbyScreen);
-}
-// Actualitza el lobby quan entra el segon jugador.
-function onPlayerJoined(playerId) {
-    lobbyStatus.textContent = `${playerId} se ha unido. Preparando partida...`;
-}
-// Carrega l'estat inicial d'una partida quan el backend digui que comença.
-function onGameStart(payload) {
-    state.opponentLabel = payload.opponentLabel || "Rival";
-    state.playerScore = payload.playerScore || 0;
-    state.opponentScore = payload.opponentScore || 0;
-    state.currentQuestion = payload.question || "";
-    state.answers = payload.answers || [];
-    state.gameEnded = false;
-    state.locked = false;
-    updateBoard();
-    showScreen(gameScreen);
-}
-// Substitueix la pregunta actual per una de nova.
-function onNewQuestion(payload) {
-    state.currentQuestion = payload.question;
-    state.answers = payload.answers;
-    state.locked = false;
-    updateBoard();
-}
-// Refresca els marcadors sense tocar la resta de l'estat.
-function onScoreUpdate(payload) {
-    state.playerScore = payload.playerScore ?? state.playerScore;
-    state.opponentScore = payload.opponentScore ?? state.opponentScore;
-    updateBoard();
-}
-// Aplica el resultat d'una resposta enviada al servidor.
-function onAnswerResult(payload) {
-    if (payload.correct) {
-        state.playerScore = payload.playerScore ?? state.playerScore + 1;
-        updateBoard();
-        return;
-    }
-    setCooldown(payload.cooldown ?? 5);
-}
-// Actualitza només el marcador del rival.
-function onOpponentUpdate(opponentScoreValue) {
-    state.opponentScore = opponentScoreValue;
-    updateBoard();
-}
-// Tanca la partida i mostra el modal final.
-function onGameOver(payload) {
-    showEndModal(payload.winner === "you" ? "¡Has ganado!" : "Has perdido", payload.message || "La partida ha terminado.");
-}
-// Mostra errors rebuts del servidor a la UI.
-function onServerError(message) {
-    setError(message || "Ha ocurrido un error.");
-}
-/* =========================================================
-   ESDEVENIMENTS DEL FRONTEND - ARA MATEIX EN MODE DEMO
-   Aquí encara no parlem amb cap backend real. Fem servir simulacions
-   locals perquè el joc sigui provable al navegador.
-   ========================================================= */
+// EVENTOS DEL FRONTEND
 createRoomBtn.addEventListener("click", () => {
+    const name = validateName();
+    if (!name)
+        return;
     setError("");
-    // DEMO LOCAL: generem un codi fals com si el backend hagués creat la sala.
-    const code = generateRoomCode();
-    onRoomCreated(code);
-    // DEMO LOCAL: simulem que al cap d'un moment entra un rival.
+    state.playerName = name;
+    connectSocket();
+    // Esperar a que el socket esté listo
+    const waitForSocket = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            clearInterval(waitForSocket);
+            sendMessage({
+                type: "create_room"
+            });
+        }
+    }, 100);
     scheduleTimeout(() => {
-        onPlayerJoined("Rival");
-    }, 1200);
-    // DEMO LOCAL: després arrenquem la partida sense cap validació real de servidor.
-    scheduleTimeout(() => {
-        startDemoGame();
-    }, 2200);
+        clearInterval(waitForSocket);
+    }, 5000);
 });
 joinRoomBtn.addEventListener("click", () => {
-    setError("");
+    const name = validateName();
+    if (!name)
+        return;
     const code = roomCodeInput.value.trim().toUpperCase();
     if (!code) {
-        setError("Tienes que escribir un código para unirte.");
+        setError("You must enter a room code.");
         return;
     }
-    // DEMO LOCAL: acceptem qualsevol codi i fem veure que la sala existeix.
-    onRoomJoined(code);
-    // DEMO LOCAL: inici automàtic d'una partida de prova en local.
+    setError("");
+    state.playerName = name;
+    connectSocket();
+    const waitForSocket = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            clearInterval(waitForSocket);
+            sendMessage({
+                type: "join_room",
+                code: code
+            });
+        }
+    }, 100);
     scheduleTimeout(() => {
-        startDemoGame();
-    }, 1400);
+        clearInterval(waitForSocket);
+    }, 5000);
 });
 answerButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -412,21 +434,10 @@ backToMenuBtn.addEventListener("click", () => {
 endGoMenuBtn.addEventListener("click", () => {
     goToMenu();
 });
-// Pinta l'estat inicial abans de qualsevol interacció.
+// Pinta l'estat inicial.
 updateBoard();
 window.triviaUI = {
-    onRoomCreated,
-    onRoomJoined,
-    onPlayerJoined,
-    onGameStart,
-    onNewQuestion,
-    onScoreUpdate,
-    onAnswerResult,
-    onOpponentUpdate,
-    onGameOver,
-    onServerError,
-    goToMenu,
-    startDemoGame
+    goToMenu
 };
 export {};
 //# sourceMappingURL=app.js.map
