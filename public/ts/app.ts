@@ -42,9 +42,11 @@ const backToMenuBtn = getById<HTMLButtonElement>("backToMenuBtn");
 const roomCodeBox = getById<HTMLElement>("roomCodeBox");
 const lobbyStatus = getById<HTMLElement>("lobbyStatus");
 
+const opponentTitle = getById<HTMLElement>("opponentTitle");
 const opponentName = getById<HTMLElement>("opponentName");
 const opponentProgress = getById<HTMLElement>("opponentProgress");
 const playerProgress = getById<HTMLElement>("playerProgress");
+const playerBoardTitle = getById<HTMLElement>("playerBoardTitle");
 const questionText = getById<HTMLElement>("questionText");
 const scoreText = getById<HTMLElement>("scoreText");
 const cooldownText = getById<HTMLElement>("cooldownText");
@@ -63,7 +65,7 @@ const state: TriviaState = {
   playerId: "",
   playerScore: 0,
   opponentScore: 0,
-  opponentLabel: "Opponent",
+  opponentLabel: "",
   currentQuestion: "",
   answers: [],
   locked: false,
@@ -153,8 +155,10 @@ function updateBoard(): void {
   createWedges(playerProgress, state.playerScore);
   createWedges(opponentProgress, state.opponentScore);
 
+  playerBoardTitle.textContent = state.playerName || "Your board";
+  opponentTitle.textContent = state.opponentLabel || "Waiting for rival...";
+  opponentName.textContent = state.opponentLabel ? "Connected" : "Waiting...";
   scoreText.textContent = String(state.playerScore);
-  opponentName.textContent = state.opponentLabel;
   questionText.textContent = state.currentQuestion || "Waiting for question...";
 
   answerButtons.forEach((button, index) => {
@@ -180,7 +184,7 @@ function resetState(): void {
   state.playerId = "";
   state.playerScore = 0;
   state.opponentScore = 0;
-  state.opponentLabel = "Opponent";
+  state.opponentLabel = "";
   state.currentQuestion = "";
   state.answers = [];
   state.locked = false;
@@ -220,15 +224,18 @@ function validateName(): string | null {
 function onGameStart(data: ServerMessage): void {
   const question = typeof data.question === "string" ? data.question : "";
   const answers = Array.isArray(data.answers) ? (data.answers as string[]) : [];
+  const playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
+  const opponentNameValue = typeof data.opponentName === "string" ? data.opponentName : state.opponentLabel;
 
   state.gameStarted = true;
   state.gameEnded = false;
   state.locked = false;
+  state.playerName = playerName;
+  state.opponentLabel = opponentNameValue;
   state.currentQuestion = question;
   state.answers = answers;
   state.playerScore = 0;
   state.opponentScore = 0;
-  state.opponentLabel = "Opponent";
 
   updateBoard();
   showScreen(gameScreen);
@@ -244,6 +251,7 @@ function handleServerMessage(data: ServerMessage): void {
 
     case "room_created": {
       state.roomCode = typeof data.code === "string" ? data.code : "";
+      state.playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
       roomCodeBox.textContent = state.roomCode || "------";
       lobbyStatus.textContent = "Waiting for the other player...";
       showScreen(lobbyScreen);
@@ -252,6 +260,7 @@ function handleServerMessage(data: ServerMessage): void {
 
     case "room_joined": {
       state.roomCode = typeof data.code === "string" ? data.code : "";
+      state.playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
       roomCodeBox.textContent = state.roomCode || "------";
       lobbyStatus.textContent = "Joined! Waiting for the game to start...";
       showScreen(lobbyScreen);
@@ -259,6 +268,7 @@ function handleServerMessage(data: ServerMessage): void {
     }
 
     case "player_joined": {
+      state.opponentLabel = typeof data.playerName === "string" ? data.playerName : state.opponentLabel;
       lobbyStatus.textContent = "Opponent joined! Starting game soon...";
       break;
     }
@@ -351,6 +361,7 @@ createRoomBtn.addEventListener("click", () => {
 
   sendWhenSocketReady({
     type: "create_room",
+    name,
   });
 });
 
@@ -372,6 +383,7 @@ joinRoomBtn.addEventListener("click", () => {
   sendWhenSocketReady({
     type: "join_room",
     code,
+    name,
   });
 });
 

@@ -16,9 +16,11 @@ const joinRoomBtn = getById("joinRoomBtn");
 const backToMenuBtn = getById("backToMenuBtn");
 const roomCodeBox = getById("roomCodeBox");
 const lobbyStatus = getById("lobbyStatus");
+const opponentTitle = getById("opponentTitle");
 const opponentName = getById("opponentName");
 const opponentProgress = getById("opponentProgress");
 const playerProgress = getById("playerProgress");
+const playerBoardTitle = getById("playerBoardTitle");
 const questionText = getById("questionText");
 const scoreText = getById("scoreText");
 const cooldownText = getById("cooldownText");
@@ -34,7 +36,7 @@ const state = {
     playerId: "",
     playerScore: 0,
     opponentScore: 0,
-    opponentLabel: "Opponent",
+    opponentLabel: "",
     currentQuestion: "",
     answers: [],
     locked: false,
@@ -107,8 +109,10 @@ function createWedges(container, count) {
 function updateBoard() {
     createWedges(playerProgress, state.playerScore);
     createWedges(opponentProgress, state.opponentScore);
+    playerBoardTitle.textContent = state.playerName || "Your board";
+    opponentTitle.textContent = state.opponentLabel || "Waiting for rival...";
+    opponentName.textContent = state.opponentLabel ? "Connected" : "Waiting...";
     scoreText.textContent = String(state.playerScore);
-    opponentName.textContent = state.opponentLabel;
     questionText.textContent = state.currentQuestion || "Waiting for question...";
     answerButtons.forEach((button, index) => {
         const answer = state.answers[index];
@@ -130,7 +134,7 @@ function resetState() {
     state.playerId = "";
     state.playerScore = 0;
     state.opponentScore = 0;
-    state.opponentLabel = "Opponent";
+    state.opponentLabel = "";
     state.currentQuestion = "";
     state.answers = [];
     state.locked = false;
@@ -164,14 +168,17 @@ function validateName() {
 function onGameStart(data) {
     const question = typeof data.question === "string" ? data.question : "";
     const answers = Array.isArray(data.answers) ? data.answers : [];
+    const playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
+    const opponentNameValue = typeof data.opponentName === "string" ? data.opponentName : state.opponentLabel;
     state.gameStarted = true;
     state.gameEnded = false;
     state.locked = false;
+    state.playerName = playerName;
+    state.opponentLabel = opponentNameValue;
     state.currentQuestion = question;
     state.answers = answers;
     state.playerScore = 0;
     state.opponentScore = 0;
-    state.opponentLabel = "Opponent";
     updateBoard();
     showScreen(gameScreen);
 }
@@ -184,6 +191,7 @@ function handleServerMessage(data) {
         }
         case "room_created": {
             state.roomCode = typeof data.code === "string" ? data.code : "";
+            state.playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
             roomCodeBox.textContent = state.roomCode || "------";
             lobbyStatus.textContent = "Waiting for the other player...";
             showScreen(lobbyScreen);
@@ -191,12 +199,14 @@ function handleServerMessage(data) {
         }
         case "room_joined": {
             state.roomCode = typeof data.code === "string" ? data.code : "";
+            state.playerName = typeof data.playerName === "string" ? data.playerName : state.playerName;
             roomCodeBox.textContent = state.roomCode || "------";
             lobbyStatus.textContent = "Joined! Waiting for the game to start...";
             showScreen(lobbyScreen);
             break;
         }
         case "player_joined": {
+            state.opponentLabel = typeof data.playerName === "string" ? data.playerName : state.opponentLabel;
             lobbyStatus.textContent = "Opponent joined! Starting game soon...";
             break;
         }
@@ -272,6 +282,7 @@ createRoomBtn.addEventListener("click", () => {
     state.playerName = name;
     sendWhenSocketReady({
         type: "create_room",
+        name,
     });
 });
 joinRoomBtn.addEventListener("click", () => {
@@ -289,6 +300,7 @@ joinRoomBtn.addEventListener("click", () => {
     sendWhenSocketReady({
         type: "join_room",
         code,
+        name,
     });
 });
 answerButtons.forEach((button) => {

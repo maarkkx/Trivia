@@ -18,6 +18,11 @@ function parseMessage(data) {
         return null;
     }
 }
+// Validem i netegem el nom per evitar valors buits o massa llargs.
+function normalizePlayerName(name) {
+    const normalizedName = name.trim().slice(0, 16);
+    return normalizedName.length > 0 ? normalizedName : null;
+}
 function getWinnerForHost(hostScore, guestScore) {
     return hostScore >= guestScore ? "you" : "opponent";
 }
@@ -70,18 +75,24 @@ async function prepareRound(room) {
 async function sendGameStart(room) {
     try {
         const round = await prepareRound(room);
+        const hostName = room.host.name ?? "Host";
+        const guestName = room.guest?.name ?? "Guest";
         room.questionsAsked = 1;
         room.status = "playing";
         sendMessage(room.host.socket, {
             type: "game_start",
             question: round.hostQuestion.question,
             answers: round.hostQuestion.answers,
+            playerName: hostName,
+            opponentName: guestName,
         });
         if (room.guest) {
             sendMessage(room.guest.socket, {
                 type: "game_start",
                 question: round.guestQuestion.question,
                 answers: round.guestQuestion.answers,
+                playerName: guestName,
+                opponentName: hostName,
             });
         }
     }
@@ -171,14 +182,33 @@ function registerSocketHandlers(wss) {
             }
             switch (message.type) {
                 case "create_room": {
+                    const playerName = normalizePlayerName(message.name);
+                    if (!playerName) {
+                        sendMessage(socket, {
+                            type: "error",
+                            message: "Name is required",
+                        });
+                        return;
+                    }
+                    player.name = playerName;
                     const room = (0, roomManager_1.createRoom)(player);
                     sendMessage(socket, {
                         type: "room_created",
                         code: room.code,
+                        playerName,
                     });
                     break;
                 }
                 case "join_room": {
+                    const playerName = normalizePlayerName(message.name);
+                    if (!playerName) {
+                        sendMessage(socket, {
+                            type: "error",
+                            message: "Name is required",
+                        });
+                        return;
+                    }
+                    player.name = playerName;
                     const room = (0, roomManager_1.joinRoom)(message.code, player);
                     if (!room) {
                         sendMessage(socket, {
@@ -190,10 +220,12 @@ function registerSocketHandlers(wss) {
                     sendMessage(socket, {
                         type: "room_joined",
                         code: room.code,
+                        playerName,
                     });
                     sendMessage(room.host.socket, {
                         type: "player_joined",
                         playerId: player.id,
+                        playerName,
                     });
                     // Petit delay per donar temps a renderitzar la pantalla de lobby.
                     setTimeout(() => {
