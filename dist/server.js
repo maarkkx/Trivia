@@ -7,10 +7,10 @@ const http_1 = require("http");
 const ws_1 = require("ws");
 const app_1 = __importDefault(require("./app"));
 const sockets_1 = require("./sockets");
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const server = (0, http_1.createServer)(app_1.default);
 const wss = new ws_1.WebSocketServer({ server });
 (0, sockets_1.registerSocketHandlers)(wss);
-server.listen(PORT, () => {
-    console.log(`funcionando http://localhost:${PORT}`);
+server.listen(Number(PORT), "0.0.0.0", () => {
+    console.log(`Servidor en línea en el puerto ${PORT}`);
 });

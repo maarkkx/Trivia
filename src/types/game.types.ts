@@ -32,10 +32,12 @@ export interface TriviaQuestion {
 export type ClientMessage =
   | {
       type: "create_room";
+      name: string;
     }
   | {
       type: "join_room";
       code: string;
+      name: string;
     }
   | {
       type: "answer";
@@ -53,19 +55,24 @@ export type ServerMessage =
   | {
       type: "room_created";
       code: string;
+      playerName: string;
     }
   | {
       type: "room_joined";
       code: string;
+      playerName: string;
     }
   | {
       type: "player_joined";
       playerId: string;
+      playerName: string;
     }
   | {
       type: "game_start";
       question: string;
       answers: string[];
+      playerName: string;
+      opponentName: string;
     }
   | {
       type: "new_question";
