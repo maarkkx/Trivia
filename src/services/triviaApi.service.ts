@@ -1,11 +1,7 @@
-export interface TriviaQuestion {
-  question: string;
-  correctAnswer: string;
-  incorrectAnswers: string[];
-  allAnswers: string[];
-}
+import type { TriviaQuestion } from "../types/question.types";
 
 function shuffleAnswers(answers: string[]): string[] {
+	//mezclar las respuestas para que no salga siempre la misma en el mismo espacio
   const shuffled = [...answers];
 
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -17,10 +13,11 @@ function shuffleAnswers(answers: string[]): string[] {
 }
 
 export async function getRandomQuestion(): Promise<TriviaQuestion> {
-  const response = await fetch("https://the-trivia-api.com/v2/questions?limit=1");
+	//1 pregunta random
+  const response = await fetch("https://the-trivia-api.com/v2/questions?order=rand&limit=1");
 
   if (!response.ok) {
-    throw new Error("No se pudo obtener una pregunta de la API");
+    throw new Error("Error with API");
   }
 
   const data = await response.json();
