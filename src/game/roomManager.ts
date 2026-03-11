@@ -2,28 +2,28 @@
 
 const rooms = new Map<string, Room>();
 
-const ROOM_CODE_LENGTH = 6;
-const ROOM_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const lengthCodigo = 6;
+const caracteresCodigo = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-function generateRoomCode(): string {
-  let code = "";
-  for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-    const randomIndex = Math.floor(Math.random() * ROOM_CODE_CHARS.length);
-    code += ROOM_CODE_CHARS[randomIndex];
+function generarRoomCode(): string {
+  let codigo = "";
+  for (let i = 0; i < lengthCodigo; i++) {
+    const numRandom = Math.floor(Math.random() * caracteresCodigo.length);
+    codigo += caracteresCodigo[numRandom];
   }
-  return code;
+  return codigo;
 }
 
-function generateUniqueRoomCode(): string {
-  let code = generateRoomCode();
+function comprobarRooms(): string {
+  let code = generarRoomCode();
   while (rooms.has(code)) {
-    code = generateRoomCode();
+    code = generarRoomCode();
   }
   return code;
 }
 
-export function createRoom(host: Player): Room {
-  const code = generateUniqueRoomCode();
+export function crearRoom(host: Player): Room {
+  const code = comprobarRooms();
   const room: Room = {
     code,
     host,
@@ -44,7 +44,7 @@ export function getRoomByCode(code: string): Room | undefined {
   return rooms.get(code);
 }
 
-export function joinRoom(code: string, guest: Player): Room | null {
+export function unirRoom(code: string, guest: Player): Room | null {
   const room = rooms.get(code);
   if (!room) {
     return null;

@@ -1,12 +1,5 @@
 import { RawData, WebSocket, WebSocketServer } from "ws";
-import {
-  createRoom,
-  getOpponent,
-  getRoomByCode,
-  joinRoom,
-  removePlayerFromRoom,
-  resetPlayerAnswers,
-} from "../game/roomManager";
+import { crearRoom, getOpponent, getRoomByCode, unirRoom, removePlayerFromRoom, resetPlayerAnswers} from "../game/roomManager";
 import { getRandomQuestion } from "../services/triviaApi.service";
 import type { ClientMessage, Player, Room, ServerMessage } from "../types/game.types";
 
@@ -238,7 +231,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
 
           player.name = playerName;
 
-          const room = createRoom(player);
+          const room = crearRoom(player);
           sendMessage(socket, {
             type: "room_created",
             code: room.code,
@@ -259,7 +252,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
 
           player.name = playerName;
 
-          const room = joinRoom(message.code, player);
+          const room = unirRoom(message.code, player);
 
           if (!room) {
             sendMessage(socket, {
