@@ -3,13 +3,13 @@ import { WebSocketServer } from "ws";
 import app from "./app";
 import { registerSocketHandlers } from "./sockets";
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; 
 
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 registerSocketHandlers(wss);
 
-server.listen(PORT, () => {
-  console.log(`funcionando http://localhost:${PORT}`);
+server.listen(Number(PORT), "0.0.0.0", () => {
+  console.log(`Servidor en línea en el puerto ${PORT}`);
 });
