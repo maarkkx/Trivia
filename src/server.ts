@@ -12,5 +12,5 @@ const wss = new WebSocketServer({ server });
 registerSocketHandlers(wss);
 
 server.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`corregiendo ${PORT}`);
+  console.log(`funcionando ${PORT}`);
 });

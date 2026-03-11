@@ -9,8 +9,8 @@ const rootDir = process.cwd();
 
 app.use(express.static(path.join(rootDir, "public")));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(rootDir, "index.html"));
+app.get(/.*/, (req, res) => {
+    res.sendFile(path.resolve(rootDir, "index.html"));
 });
 
 export default app;
