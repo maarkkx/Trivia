@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRoom = createRoom;
 exports.getRoomByCode = getRoomByCode;
 exports.joinRoom = joinRoom;
+exports.getOpponent = getOpponent;
+exports.removePlayerFromRoom = removePlayerFromRoom;
 exports.removeRoom = removeRoom;
 const rooms = new Map();
 const ROOM_CODE_LENGTH = 6;
@@ -55,6 +57,44 @@ function joinRoom(code, guest) {
     room.status = "playing";
     guest.roomCode = code;
     return room;
+}
+function getOpponent(room, playerId) {
+    //si lo pide el host le damos la id del que se une a la sala
+    if (room.host.id === playerId) {
+        return room.guest;
+    }
+    //aqui al reves
+    if (room.guest && room.guest.id === playerId) {
+        return room.host;
+    }
+    return null;
+}
+function removePlayerFromRoom(player) {
+    if (!player.roomCode) {
+        return null;
+    }
+    //miramos si el jugador tiene una room asignada
+    const room = rooms.get(player.roomCode);
+    if (!room) {
+        player.roomCode = null;
+        return null;
+    }
+    if (room.host.id === player.id) {
+        rooms.delete(room.code);
+        if (room.guest) {
+            room.guest.roomCode = null;
+        }
+        player.roomCode = null;
+        return room;
+    }
+    if (room.guest && room.guest.id === player.id) {
+        room.guest = null;
+        room.status = "waiting";
+        player.roomCode = null;
+        return room;
+    }
+    player.roomCode = null;
+    return null;
 }
 function removeRoom(code) {
     rooms.delete(code);

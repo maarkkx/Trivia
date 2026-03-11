@@ -42,6 +42,9 @@ export type ServerMessage =
       playerId: string;
     }
   | {
+      type: "opponent_left";
+    }
+  | {
       type: "error";
       message: string;
     };

@@ -1,41 +1,15 @@
 import { createServer } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer } from "ws";
 import app from "./app";
+import { registerSocketHandlers } from "./sockets";
 
 const PORT = 3000;
 
 const server = createServer(app);
-
 const wss = new WebSocketServer({ server });
 
-wss.on("connection", (socket: WebSocket) => {
-  console.log("Cliente conectado por WebSocket");
-
-  socket.send(
-    JSON.stringify({
-      type: "connection",
-      message: "Connected to server",
-    }),
-  );
-
-  socket.on("message", (data) => {
-    const message = data.toString();
-
-    console.log("Message received", message);
-
-    socket.send(
-      JSON.stringify({
-        type: "echo",
-        message: `El servidor recibió: ${message}`,
-      }),
-    );
-  });
-
-  socket.on("close", () => {
-    console.log("Cliente desconectado");
-  });
-});
+registerSocketHandlers(wss);
 
 server.listen(PORT, () => {
-  console.log(`Servidor HTTP en http://localhost:${PORT}`);
+  console.log(`funcionando http://localhost:${PORT}`);
 });
