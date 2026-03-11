@@ -31,10 +31,9 @@ function createRoom(host) {
         host,
         guest: null,
         status: "waiting",
-        currentQuestionIndex: 0,
         questionsAsked: 0,
-        host_answered: false,
-        guest_answered: false,
+        hostAnswered: false,
+        guestAnswered: false,
     };
     host.roomCode = code;
     host.score = 0;
@@ -90,6 +89,6 @@ function removePlayerFromRoom(player) {
     return null;
 }
 function resetPlayerAnswers(room) {
-    room.host_answered = false;
-    room.guest_answered = false;
+    room.hostAnswered = false;
+    room.guestAnswered = false;
 }

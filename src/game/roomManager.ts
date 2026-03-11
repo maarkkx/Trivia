@@ -29,10 +29,9 @@ export function createRoom(host: Player): Room {
     host,
     guest: null,
     status: "waiting",
-    currentQuestionIndex: 0,
     questionsAsked: 0,
-    host_answered: false,
-    guest_answered: false,
+    hostAnswered: false,
+    guestAnswered: false,
   };
 
   host.roomCode = code;
@@ -99,6 +98,6 @@ export function removePlayerFromRoom(player: Player): Room | null {
 }
 
 export function resetPlayerAnswers(room: Room): void {
-  room.host_answered = false;
-  room.guest_answered = false;
+  room.hostAnswered = false;
+  room.guestAnswered = false;
 }

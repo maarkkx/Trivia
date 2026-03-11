@@ -1,14 +1,14 @@
-import { WebSocketServer, WebSocket, RawData } from "ws";
+import { RawData, WebSocket, WebSocketServer } from "ws";
 import {
   createRoom,
-  joinRoom,
-  getRoomByCode,
   getOpponent,
+  getRoomByCode,
+  joinRoom,
   removePlayerFromRoom,
   resetPlayerAnswers,
 } from "../game/roomManager";
 import { getRandomQuestion } from "../services/triviaApi.service";
-import type { ClientMessage, Player, ServerMessage, Room } from "../types/game.types";
+import type { ClientMessage, Player, Room, ServerMessage } from "../types/game.types";
 
 function generatePlayerId(): string {
   return crypto.randomUUID();
@@ -18,111 +18,174 @@ function sendMessage(socket: WebSocket, message: ServerMessage): void {
   socket.send(JSON.stringify(message));
 }
 
+// Parsegem el missatge entrant i descartem payloads mal formats.
 function parseMessage(data: RawData): ClientMessage | null {
   try {
-    const parsedData = JSON.parse(data.toString()) as ClientMessage;
-    return parsedData;
+    return JSON.parse(data.toString()) as ClientMessage;
   } catch {
     return null;
   }
 }
 
-async function sendGameStart(room: Room): Promise<void> {
-  try {
-    // Enviar pregunta diferente a cada jugador
-    const hostQuestion = await getRandomQuestion();
-    const guestQuestion = await getRandomQuestion();
+function getWinnerForHost(hostScore: number, guestScore: number): "you" | "opponent" {
+  return hostScore >= guestScore ? "you" : "opponent";
+}
 
-    room.hostCorrectAnswer = hostQuestion.correctAnswer;
-    room.guestCorrectAnswer = guestQuestion.correctAnswer;
-    room.currentQuestionIndex = 0;
-    room.questionsAsked = 1;
-    resetPlayerAnswers(room);
+function getWinnerForGuest(hostScore: number, guestScore: number): "you" | "opponent" {
+  return guestScore >= hostScore ? "you" : "opponent";
+}
 
-    const hostPayload = {
-      type: "game_start",
+function sendGameOver(room: Room): void {
+  const hostScore = room.host.score;
+  const guestScore = room.guest?.score ?? 0;
+  const finalMessage = `Final score: ${hostScore} - ${guestScore}`;
+
+  sendMessage(room.host.socket, {
+    type: "game_over",
+    winner: getWinnerForHost(hostScore, guestScore),
+    message: finalMessage,
+  });
+
+  if (room.guest) {
+    sendMessage(room.guest.socket, {
+      type: "game_over",
+      winner: getWinnerForGuest(hostScore, guestScore),
+      message: finalMessage,
+    });
+  }
+
+  room.status = "finished";
+}
+
+// Preparem dues preguntes (una per jugador) i guardem els indexos correctes al servidor.
+async function prepareRound(room: Room): Promise<{
+  hostQuestion: { question: string; answers: string[] };
+  guestQuestion: { question: string; answers: string[] };
+}> {
+  const [hostQuestion, guestQuestion] = await Promise.all([
+    getRandomQuestion(),
+    getRandomQuestion(),
+  ]);
+
+  const hostCorrectIndex = hostQuestion.allAnswers.findIndex(
+    (answer) => answer === hostQuestion.correctAnswer
+  );
+  const guestCorrectIndex = guestQuestion.allAnswers.findIndex(
+    (answer) => answer === guestQuestion.correctAnswer
+  );
+
+  if (hostCorrectIndex < 0 || guestCorrectIndex < 0) {
+    throw new Error("Could not resolve correct answer index");
+  }
+
+  room.hostCorrectIndex = hostCorrectIndex;
+  room.guestCorrectIndex = guestCorrectIndex;
+  resetPlayerAnswers(room);
+
+  return {
+    hostQuestion: {
       question: hostQuestion.question,
       answers: hostQuestion.allAnswers,
-    };
-
-    const guestPayload = {
-      type: "game_start",
+    },
+    guestQuestion: {
       question: guestQuestion.question,
       answers: guestQuestion.allAnswers,
-    };
+    },
+  };
+}
 
-    sendMessage(room.host.socket, hostPayload as any);
+async function sendGameStart(room: Room): Promise<void> {
+  try {
+    const round = await prepareRound(room);
+
+    room.questionsAsked = 1;
+    room.status = "playing";
+
+    sendMessage(room.host.socket, {
+      type: "game_start",
+      question: round.hostQuestion.question,
+      answers: round.hostQuestion.answers,
+    });
+
     if (room.guest) {
-      sendMessage(room.guest.socket, guestPayload as any);
+      sendMessage(room.guest.socket, {
+        type: "game_start",
+        question: round.guestQuestion.question,
+        answers: round.guestQuestion.answers,
+      });
     }
   } catch (error) {
-    console.error("Error obteniendo pregunta:", error);
+    console.error("Error loading start questions:", error);
     sendMessage(room.host.socket, {
       type: "error",
-      message: "No se pudo cargar la pregunta",
+      message: "Could not load questions",
     });
+
     if (room.guest) {
       sendMessage(room.guest.socket, {
         type: "error",
-        message: "No se pudo cargar la pregunta",
+        message: "Could not load questions",
       });
     }
   }
 }
 
 async function sendNextQuestion(room: Room): Promise<void> {
-  try {
-    // Si ya se hicieron 8 preguntas, determinar ganador
-    if (room.questionsAsked >= 8) {
-      const hostWon = room.host.score > (room.guest?.score || 0);
-      const guestWon = (room.guest?.score || 0) > room.host.score;
-
-      sendMessage(room.host.socket, {
-        type: "game_over",
-        winner: hostWon ? "you" : guestWon ? "opponent" : "you",
-        message: `Final: ${room.host.score} - ${room.guest?.score || 0}`,
-      });
-
-      if (room.guest) {
-        sendMessage(room.guest.socket, {
-          type: "game_over",
-          winner: guestWon ? "you" : hostWon ? "opponent" : "opponent",
-          message: `Final: ${room.host.score} - ${room.guest.score}`,
-        });
-      }
-
-      room.status = "finished";
-      return;
-    }
-
-    // Enviar siguiente pregunta diferente a cada jugador
-    const hostQuestion = await getRandomQuestion();
-    const guestQuestion = await getRandomQuestion();
-
-    room.hostCorrectAnswer = hostQuestion.correctAnswer;
-    room.guestCorrectAnswer = guestQuestion.correctAnswer;
-    room.questionsAsked += 1;
-    resetPlayerAnswers(room);
-
-    const hostPayload = {
-      type: "new_question",
-      question: hostQuestion.question,
-      answers: hostQuestion.allAnswers,
-    };
-
-    const guestPayload = {
-      type: "new_question",
-      question: guestQuestion.question,
-      answers: guestQuestion.allAnswers,
-    };
-
-    sendMessage(room.host.socket, hostPayload as any);
-    if (room.guest) {
-      sendMessage(room.guest.socket, guestPayload as any);
-    }
-  } catch (error) {
-    console.error("Error obteniendo siguiente pregunta:", error);
+  if (!room.guest) {
+    return;
   }
+
+  if (room.questionsAsked >= 8 || room.host.score >= 8 || room.guest.score >= 8) {
+    sendGameOver(room);
+    return;
+  }
+
+  try {
+    const round = await prepareRound(room);
+    room.questionsAsked += 1;
+
+    sendMessage(room.host.socket, {
+      type: "new_question",
+      question: round.hostQuestion.question,
+      answers: round.hostQuestion.answers,
+    });
+
+    sendMessage(room.guest.socket, {
+      type: "new_question",
+      question: round.guestQuestion.question,
+      answers: round.guestQuestion.answers,
+    });
+  } catch (error) {
+    console.error("Error loading next questions:", error);
+    sendMessage(room.host.socket, {
+      type: "error",
+      message: "Could not load next question",
+    });
+
+    if (room.guest) {
+      sendMessage(room.guest.socket, {
+        type: "error",
+        message: "Could not load next question",
+      });
+    }
+  }
+}
+
+function markPlayerAnswered(room: Room, isHostPlayer: boolean): void {
+  if (isHostPlayer) {
+    room.hostAnswered = true;
+    return;
+  }
+
+  room.guestAnswered = true;
+}
+
+function hasPlayerAnswered(room: Room, isHostPlayer: boolean): boolean {
+  return isHostPlayer ? room.hostAnswered : room.guestAnswered;
+}
+
+function getExpectedAnswerIndex(room: Room, isHostPlayer: boolean): number | undefined {
+  return isHostPlayer ? room.hostCorrectIndex : room.guestCorrectIndex;
 }
 
 export function registerSocketHandlers(wss: WebSocketServer): void {
@@ -145,7 +208,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
       if (!message) {
         sendMessage(socket, {
           type: "error",
-          message: "Formato de mensaje inválido",
+          message: "Invalid message format",
         });
         return;
       }
@@ -153,12 +216,10 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
       switch (message.type) {
         case "create_room": {
           const room = createRoom(player);
-
           sendMessage(socket, {
             type: "room_created",
             code: room.code,
           });
-
           break;
         }
 
@@ -168,7 +229,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
           if (!room) {
             sendMessage(socket, {
               type: "error",
-              message: "El código no coincide con ninguna sala o la sala está llena.",
+              message: "Room not found or full",
             });
             return;
           }
@@ -183,91 +244,94 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
             playerId: player.id,
           });
 
-          // Iniciar juego después de 1 segundo
+          // Petit delay per donar temps a renderitzar la pantalla de lobby.
           setTimeout(() => {
-            sendGameStart(room);
+            void sendGameStart(room);
           }, 1000);
 
           break;
         }
 
         case "answer": {
-          if (!player.roomCode) return;
-          const room = getRoomByCode(player.roomCode);
-          if (!room || !room.guest) return;
-
-          // Determinar la respuesta correcta para este jugador
-          const isHostPlayer = room.host.id === player.id;
-          const correctAnswer = isHostPlayer
-            ? room.hostCorrectAnswer
-            : room.guestCorrectAnswer;
-
-          // Obtener la respuesta elegida
-          const answers = isHostPlayer
-            ? ["answer0", "answer1", "answer2", "answer3"]
-            : ["answer0", "answer1", "answer2", "answer3"];
-
-          const selectedAnswer = answers[message.answerIndex];
-          const isCorrect = selectedAnswer && message.answerIndex >= 0 && message.answerIndex < 4 && correctAnswer !== undefined;
-
-          // Validar si es correcta comparando el índice
-          let actualCorrect = false;
-          
-          // Simulamos que si eligió la respuesta correcta (basado en correctAnswer)
-          if (room.hostCorrectAnswer && isHostPlayer) {
-            // Para el host, buscar qué posición tiene la respuesta correcta
-            actualCorrect = message.answerIndex >= 0 && message.answerIndex < 4;
-            // Aquí deberíamos comparar con la posición exacta, pero como no tenemos las respuestas mezcladas aquí,
-            // confiaremos en que el cliente valida bien. En producción, enviar el índice correcto desde el servidor.
-          } else if (room.guestCorrectAnswer && !isHostPlayer) {
-            actualCorrect = message.answerIndex >= 0 && message.answerIndex < 4;
+          if (!player.roomCode) {
+            return;
           }
 
-          // Para esta versión, validamos localmente
-          // En el frontend ya valida, así que confiamos en la respuesta
-          if (actualCorrect) {
+          const room = getRoomByCode(player.roomCode);
+          if (!room || !room.guest || room.status !== "playing") {
+            return;
+          }
+
+          if (!Number.isInteger(message.answerIndex) || message.answerIndex < 0 || message.answerIndex > 3) {
+            sendMessage(socket, {
+              type: "error",
+              message: "Invalid answer index",
+            });
+            return;
+          }
+
+          const isHostPlayer = room.host.id === player.id;
+
+          if (hasPlayerAnswered(room, isHostPlayer)) {
+            sendMessage(socket, {
+              type: "error",
+              message: "You already answered this round",
+            });
+            return;
+          }
+
+          const expectedIndex = getExpectedAnswerIndex(room, isHostPlayer);
+          if (expectedIndex === undefined) {
+            sendMessage(socket, {
+              type: "error",
+              message: "Question is not ready",
+            });
+            return;
+          }
+
+          // Validacio autoritativa: el servidor decideix si es correcta.
+          const isCorrect = message.answerIndex === expectedIndex;
+          if (isCorrect) {
             player.score += 1;
           }
 
-          // Marcar que este jugador respondió
-          if (isHostPlayer) {
-            room.host_answered = true;
-          } else {
-            room.guest_answered = true;
-          }
+          markPlayerAnswered(room, isHostPlayer);
 
-          // Enviar resultado a ambos jugadores
           const opponent = getOpponent(room, player.id);
-          
           sendMessage(socket, {
             type: "answer_result",
-            correct: actualCorrect,
+            correct: isCorrect,
             playerScore: player.score,
-            opponentScore: opponent?.score || 0,
+            opponentScore: opponent?.score ?? 0,
+            cooldown: isCorrect ? undefined : 5,
           });
 
           if (opponent) {
             sendMessage(opponent.socket, {
-              type: "answer_result",
-              correct: !actualCorrect,
+              type: "score_update",
               playerScore: opponent.score,
               opponentScore: player.score,
             });
-
-            // Si ambos respondieron, enviar siguiente pregunta
-            if (room.host_answered && room.guest_answered) {
-              setTimeout(() => {
-                sendNextQuestion(room);
-              }, 1500);
-            }
           }
+
+          if (room.hostAnswered && room.guestAnswered) {
+            setTimeout(() => {
+              void sendNextQuestion(room);
+            }, 1200);
+          }
+
           break;
         }
 
         case "leave_room": {
-          if (!player.roomCode) return;
+          if (!player.roomCode) {
+            return;
+          }
+
           const room = getRoomByCode(player.roomCode);
-          if (!room) return;
+          if (!room) {
+            return;
+          }
 
           const opponent = getOpponent(room, player.id);
           if (opponent) {
@@ -283,7 +347,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
         default: {
           sendMessage(socket, {
             type: "error",
-            message: "Tipo de mensaje desconocido",
+            message: "Unknown message type",
           });
         }
       }
@@ -301,6 +365,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
           }
         }
       }
+
       removePlayerFromRoom(player);
     });
   });

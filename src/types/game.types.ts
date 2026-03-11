@@ -6,22 +6,20 @@ export interface Player {
   roomCode: string | null;
   name?: string;
   score: number;
-  answered?: boolean;
 }
 
 export type RoomStatus = "waiting" | "playing" | "finished";
 
 export interface Room {
   code: string;
-  host: Player; //Jugador que crea la sala
-  guest: Player | null; //Jugador que se une
+  host: Player;
+  guest: Player | null;
   status: RoomStatus;
-  currentQuestionIndex: number;
-  hostCorrectAnswer?: string;
-  guestCorrectAnswer?: string;
   questionsAsked: number;
-  host_answered?: boolean;
-  guest_answered?: boolean;
+  hostAnswered: boolean;
+  guestAnswered: boolean;
+  hostCorrectIndex?: number;
+  guestCorrectIndex?: number;
 }
 
 export interface TriviaQuestion {
@@ -77,6 +75,12 @@ export type ServerMessage =
   | {
       type: "answer_result";
       correct: boolean;
+      playerScore: number;
+      opponentScore: number;
+      cooldown?: number;
+    }
+  | {
+      type: "score_update";
       playerScore: number;
       opponentScore: number;
     }
