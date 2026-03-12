@@ -10,8 +10,9 @@ function sendMessage(socket, message) {
 // Iniciar el joc: carrega les primeres preguntes
 async function startGame(room) {
     try {
-        const q1 = await (0, triviaApi_service_1.getRandomQuestion)();
-        const q2 = await (0, triviaApi_service_1.getRandomQuestion)();
+        const q1 = await (0, triviaApi_service_1.preguntaRandom)();
+        const q2 = await (0, triviaApi_service_1.preguntaRandom)();
+        //Marcar les preguntes correctes dins de la room
         room.hostCorrectIndex = q1.allAnswers.indexOf(q1.correctAnswer);
         room.guestCorrectIndex = q2.allAnswers.indexOf(q2.correctAnswer);
         room.status = "playing";
@@ -57,12 +58,12 @@ async function nextQuestion(room) {
             guestScore: room.guest.score,
         });
         room.status = "finished";
-        (0, roomManager_1.removePlayerFromRoom)(room.host.id);
+        (0, roomManager_1.eliminarPlayerRoom)(room.host.id);
         return;
     }
     try {
-        const q1 = await (0, triviaApi_service_1.getRandomQuestion)();
-        const q2 = await (0, triviaApi_service_1.getRandomQuestion)();
+        const q1 = await (0, triviaApi_service_1.preguntaRandom)();
+        const q2 = await (0, triviaApi_service_1.preguntaRandom)();
         room.hostCorrectIndex = q1.allAnswers.indexOf(q1.correctAnswer);
         room.guestCorrectIndex = q2.allAnswers.indexOf(q2.correctAnswer);
         room.host.answered = false;
@@ -85,6 +86,7 @@ async function nextQuestion(room) {
 }
 function registerSocketHandlers(wss) {
     wss.on("connection", (socket) => {
+        //Creacip del player quan es conecta un client
         const player = {
             id: Math.random().toString(36).substr(2, 9),
             socket,
@@ -99,14 +101,13 @@ function registerSocketHandlers(wss) {
             playerId: player.id,
         });
         socket.on("message", async (data) => {
-            let message;
+            let message; //missatge amb el nomd'usuari
             try {
                 message = JSON.parse(data.toString());
             }
             catch {
                 return;
             }
-            // Crear sala
             if (message.type === "create_room") {
                 player.name = message.name || "Player " + player.id.slice(0, 4);
                 const room = (0, roomManager_1.createRoom)(player);
@@ -192,7 +193,7 @@ function registerSocketHandlers(wss) {
                                 type: "opponent_left",
                             });
                         }
-                        (0, roomManager_1.removePlayerFromRoom)(player.id);
+                        (0, roomManager_1.eliminarPlayerRoom)(player.id);
                     }
                 }
             }
@@ -208,7 +209,7 @@ function registerSocketHandlers(wss) {
                             type: "opponent_left",
                         });
                     }
-                    (0, roomManager_1.removePlayerFromRoom)(player.id);
+                    (0, roomManager_1.eliminarPlayerRoom)(player.id);
                 }
             }
             console.log(`Jugador desconnectat: ${player.id}`);

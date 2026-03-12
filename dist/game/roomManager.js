@@ -4,7 +4,7 @@ exports.createRoom = createRoom;
 exports.getRoomByCode = getRoomByCode;
 exports.joinRoom = joinRoom;
 exports.getOpponent = getOpponent;
-exports.removePlayerFromRoom = removePlayerFromRoom;
+exports.eliminarPlayerRoom = eliminarPlayerRoom;
 const rooms = new Map();
 // Generar codi de sala de 6 caràcters
 function generateRoomCode() {
@@ -59,7 +59,7 @@ function getOpponent(room, playerId) {
     return null;
 }
 // Eliminar jugador de la sala
-function removePlayerFromRoom(playerId) {
+function eliminarPlayerRoom(playerId) {
     const room = Array.from(rooms.values()).find((r) => r.host.id === playerId || r.guest?.id === playerId);
     if (room) {
         rooms.delete(room.code);
