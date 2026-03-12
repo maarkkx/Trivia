@@ -22,7 +22,7 @@ const endTitle = document.getElementById("endTitle");
 const endMessage = document.getElementById("endMessage");
 const endGoMenuBtn = document.getElementById("endGoMenuBtn");
 const answerButtons = Array.from(document.querySelectorAll(".answer-btn"));
-// Estat del joc
+//Estat del joc i connexió
 let state = {
     roomCode: "",
     playerName: "",
@@ -36,8 +36,8 @@ let state = {
     gameEnded: false,
 };
 let ws = null;
-// Connectar amb el servidor
-function connectSocket() {
+//Conectar al servicor utilitzant WebSocket
+function conectarSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         return;
     }
@@ -45,22 +45,22 @@ function connectSocket() {
     ws = new WebSocket(`${protocol}//${window.location.host}`);
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        handleMessage(data);
+        handleMissatge(data);
     };
     ws.onclose = () => {
         ws = null;
     };
 }
-// Enviar missatge al servidor
-function sendMessage(message) {
+//Enviar el missatge al servior
+function enviarMissatge(message) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         menuError.textContent = "No connectat al servidor";
         return;
     }
     ws.send(JSON.stringify(message));
 }
-// Processar missatges del servidor
-function handleMessage(data) {
+//Procesar missatges del servidor
+function handleMissatge(data) {
     switch (data.type) {
         case "connected":
             state.playerId = data.playerId;
@@ -70,14 +70,14 @@ function handleMessage(data) {
             state.playerName = data.playerName;
             roomCodeBox.textContent = data.code;
             lobbyStatus.textContent = "Esperant oponent...";
-            showScreen(lobbyScreen);
+            mostrarPerPantalla(lobbyScreen);
             break;
         case "room_joined":
             state.roomCode = data.code;
             state.playerName = data.playerName;
             roomCodeBox.textContent = data.code;
             lobbyStatus.textContent = "Afegit! Esperant que comenci...";
-            showScreen(lobbyScreen);
+            mostrarPerPantalla(lobbyScreen);
             break;
         case "player_joined":
             state.opponentName = data.playerName;
@@ -91,24 +91,24 @@ function handleMessage(data) {
             state.playerScore = 0;
             state.opponentScore = 0;
             state.locked = false;
-            updateBoard();
-            showScreen(gameScreen);
+            actualitzarTaula();
+            mostrarPerPantalla(gameScreen);
             break;
         case "new_question":
             state.locked = false;
             state.currentQuestion = data.question;
             state.answers = data.answers;
-            updateBoard();
+            actualitzarTaula();
             break;
         case "answer_result":
             state.playerScore = data.playerScore;
             state.opponentScore = data.opponentScore;
-            updateBoard();
+            actualitzarTaula();
             break;
         case "score_update":
             state.playerScore = data.playerScore;
             state.opponentScore = data.opponentScore;
-            updateBoard();
+            actualitzarTaula();
             break;
         case "game_over":
             endTitle.textContent = data.winner === "you" ? "Has guanyat!" : "Has perdut";
@@ -124,16 +124,16 @@ function handleMessage(data) {
             break;
     }
 }
-// Mostrar pantalla
-function showScreen(screen) {
+//Mostrar el menú, lobby o pantalla de joc segons el que toqui
+function mostrarPerPantalla(screen) {
     [menuScreen, lobbyScreen, gameScreen].forEach((s) => {
         s?.classList.remove("active");
     });
     screen?.classList.add("active");
 }
-// Actualitzar taula de joc
-function updateBoard() {
-    // Mostrar puntuació (estreles)
+//Actualitzar la taula de joc amb l'estat actual (puntuació, pregunta, respostes, etc)
+function actualitzarTaula() {
+    //Mostrar els quesitos de puntuació
     playerProgress.innerHTML = "";
     for (let i = 0; i < 8; i++) {
         const wedge = document.createElement("div");
@@ -158,18 +158,18 @@ function updateBoard() {
         btn.disabled = state.locked || state.gameEnded || !state.answers[i];
     });
 }
-// Respondre pregunta
+//Enviar la resposta seleccionada al servidor
 function submitAnswer(index) {
     if (state.locked || state.gameEnded)
         return;
     state.locked = true;
-    updateBoard();
-    sendMessage({
+    actualitzarTaula();
+    enviarMissatge({
         type: "answer",
         answerIndex: index,
     });
 }
-// Botons
+//MARK IMPORTANTE Aquí se gestionan los eventos de los botones para crear/join sala, enviar respuestas, volver al menú, etc
 createRoomBtn?.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     if (!name) {
@@ -177,11 +177,12 @@ createRoomBtn?.addEventListener("click", () => {
         return;
     }
     menuError.textContent = "";
-    connectSocket();
+    conectarSocket();
     setTimeout(() => {
-        sendMessage({ type: "create_room", name });
+        enviarMissatge({ type: "create_room", name });
     }, 500);
 });
+//Unirse a una sala existent utilitzant el codi de sala i el nom del jugador
 joinRoomBtn?.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     const code = roomCodeInput.value.trim().toUpperCase();
@@ -190,17 +191,18 @@ joinRoomBtn?.addEventListener("click", () => {
         return;
     }
     menuError.textContent = "";
-    connectSocket();
+    conectarSocket();
     setTimeout(() => {
-        sendMessage({ type: "join_room", code, name });
+        enviarMissatge({ type: "join_room", code, name });
     }, 500);
 });
+//Enviar la resposta seleccionada al servidor
 answerButtons.forEach((btn, i) => {
     btn.addEventListener("click", () => submitAnswer(i));
 });
 backToMenuBtn?.addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        sendMessage({ type: "leave_room" });
+        enviarMissatge({ type: "leave_room" });
     }
     state = {
         roomCode: "",
@@ -216,12 +218,12 @@ backToMenuBtn?.addEventListener("click", () => {
     };
     menuError.textContent = "";
     endModal.classList.add("hidden");
-    updateBoard();
-    showScreen(menuScreen);
+    actualitzarTaula();
+    mostrarPerPantalla(menuScreen);
 });
 endGoMenuBtn?.addEventListener("click", () => {
     backToMenuBtn?.click();
 });
-updateBoard();
+actualitzarTaula();
 export {};
 //# sourceMappingURL=app.js.map
