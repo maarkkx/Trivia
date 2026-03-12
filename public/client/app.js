@@ -111,7 +111,7 @@ function handleMissatge(data) {
             actualitzarTaula();
             break;
         case "game_over":
-            endTitle.textContent = data.winner === "you" ? "Has guanyat!" : "Has perdut";
+            endTitle.textContent = data.winner === "you" ? "You Won!" : "You lost";
             endMessage.textContent = `Score: ${data.hostScore} - ${data.guestScore}`;
             endModal.classList.remove("hidden");
             state.gameEnded = true;
@@ -173,7 +173,7 @@ function submitAnswer(index) {
 createRoomBtn?.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     if (!name) {
-        menuError.textContent = "Has d'escriure un nom";
+        menuError.textContent = "Write a nick!!";
         return;
     }
     menuError.textContent = "";
@@ -187,7 +187,7 @@ joinRoomBtn?.addEventListener("click", () => {
     const name = playerNameInput.value.trim();
     const code = roomCodeInput.value.trim().toUpperCase();
     if (!name || !code) {
-        menuError.textContent = "Has d'escriure nom i codi";
+        menuError.textContent = "You need to write name and code";
         return;
     }
     menuError.textContent = "";
