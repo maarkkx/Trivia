@@ -61,7 +61,7 @@ export function getOpponent(room: Room, playerId: string): Player | null {
 }
 
 // Eliminar jugador de la sala
-export function removePlayerFromRoom(playerId: string): void {
+export function eliminarPlayerRoom(playerId: string): void {
   const room = Array.from(rooms.values()).find(
     (r) => r.host.id === playerId || r.guest?.id === playerId
   );

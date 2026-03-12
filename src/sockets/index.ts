@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { createRoom, getRoomByCode, joinRoom, getOpponent, removePlayerFromRoom } from "../game/roomManager";
-import { getRandomQuestion } from "../services/triviaApi.service";
+import { createRoom, getRoomByCode, joinRoom, getOpponent, eliminarPlayerRoom } from "../game/roomManager";
+import { preguntaRandom } from "../services/triviaApi.service";
 import type { Player, Room } from "../types/game.types";
 
 // Enviar missatge a un client
@@ -11,9 +11,10 @@ function sendMessage(socket: WebSocket, message: any): void {
 // Iniciar el joc: carrega les primeres preguntes
 async function startGame(room: Room): Promise<void> {
   try {
-    const q1 = await getRandomQuestion();
-    const q2 = await getRandomQuestion();
+    const q1 = await preguntaRandom();
+    const q2 = await preguntaRandom();
 
+    //Marcar les preguntes correctes dins de la room
     room.hostCorrectIndex = q1.allAnswers.indexOf(q1.correctAnswer);
     room.guestCorrectIndex = q2.allAnswers.indexOf(q2.correctAnswer); 
     room.status = "playing";
@@ -64,13 +65,13 @@ async function nextQuestion(room: Room): Promise<void> {
     });
 
     room.status = "finished";
-    removePlayerFromRoom(room.host.id);
+    eliminarPlayerRoom(room.host.id);
     return;
   }
 
   try {
-    const q1 = await getRandomQuestion();
-    const q2 = await getRandomQuestion();
+    const q1 = await preguntaRandom();
+    const q2 = await preguntaRandom();
 
     room.hostCorrectIndex = q1.allAnswers.indexOf(q1.correctAnswer);
     room.guestCorrectIndex = q2.allAnswers.indexOf(q2.correctAnswer);
@@ -94,8 +95,11 @@ async function nextQuestion(room: Room): Promise<void> {
   }
 }
 
+
+
 export function registerSocketHandlers(wss: WebSocketServer): void {
   wss.on("connection", (socket: WebSocket) => {
+    //Creacip del player quan es conecta un client
     const player: Player = {
       id: Math.random().toString(36).substr(2, 9),
       socket,
@@ -113,14 +117,13 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
     });
 
     socket.on("message", async (data) => {
-      let message;
+      let message; //missatge amb el nomd'usuari
       try {
         message = JSON.parse(data.toString());
       } catch {
         return;
       }
 
-      // Crear sala
       if (message.type === "create_room") {
         player.name = message.name || "Player " + player.id.slice(0, 4);
         const room = createRoom(player);
@@ -222,7 +225,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
                 type: "opponent_left",
               });
             }
-            removePlayerFromRoom(player.id);
+            eliminarPlayerRoom(player.id);
           }
         }
       }
@@ -239,7 +242,7 @@ export function registerSocketHandlers(wss: WebSocketServer): void {
               type: "opponent_left",
             });
           }
-          removePlayerFromRoom(player.id);
+          eliminarPlayerRoom(player.id);
         }
       }
       console.log(`Jugador desconnectat: ${player.id}`);
