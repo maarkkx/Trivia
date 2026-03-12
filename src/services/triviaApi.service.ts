@@ -1,38 +1,36 @@
-import type { TriviaQuestion } from "../types/question.types";
+import type { Question } from "../types/game.types";
 
-function shuffleAnswers(answers: string[]): string[] {
-	//mezclar las respuestas para que no salga siempre la misma en el mismo espacio
-  const shuffled = [...answers];
-
+// Barallar les respostes
+function shuffleArray(arr: string[]): string[] {
+  const shuffled = [...arr];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const randomIndex = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[i]];
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-
   return shuffled;
 }
 
-export async function getRandomQuestion(): Promise<TriviaQuestion> {
-	//1 pregunta random
+// Obtenir pregunta random de l'API
+export async function getRandomQuestion(): Promise<Question> {
   const response = await fetch("https://the-trivia-api.com/v2/questions?order=rand&limit=1");
 
   if (!response.ok) {
-    throw new Error("Error with API");
+    throw new Error("Error amb l'API de Trivia");
   }
 
   const data = await response.json();
+  const question = data[0];
 
-  const apiQuestion = data[0];
-
-  const allAnswers = shuffleAnswers([
-    apiQuestion.correctAnswer,
-    ...apiQuestion.incorrectAnswers,
+  // Barallar totes les respostes
+  const allAnswers = shuffleArray([
+    question.correctAnswer,
+    ...question.incorrectAnswers,
   ]);
 
   return {
-    question: apiQuestion.question.text,
-    correctAnswer: apiQuestion.correctAnswer,
-    incorrectAnswers: apiQuestion.incorrectAnswers,
+    question: question.question.text,
+    correctAnswer: question.correctAnswer,
+    incorrectAnswers: question.incorrectAnswers,
     allAnswers,
   };
 }

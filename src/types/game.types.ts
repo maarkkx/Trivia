@@ -1,51 +1,33 @@
 import type { WebSocket } from "ws";
 
+// Estructura de un jugador
 export interface Player {
   id: string;
   socket: WebSocket;
   roomCode: string | null;
-  name?: string;
+  name: string;
   score: number;
+  answered: boolean;
 }
 
-export type RoomStatus = "waiting" | "playing" | "finished";
-
+// Una sala de joc que inclou el host, el guest i l'estat del joc
 export interface Room {
   code: string;
   host: Player;
   guest: Player | null;
-  status: RoomStatus;
+  status: string;
   questionsAsked: number;
-  hostAnswered: boolean;
-  guestAnswered: boolean;
-  hostCorrectIndex?: number;
-  guestCorrectIndex?: number;
+  hostCorrectIndex: number;
+  guestCorrectIndex: number;
 }
 
-export interface TriviaQuestion {
+//Estructura de una pregunta de trivia, que es retorna des de l'API i es processa per enviar al client
+export interface Question {
   question: string;
   correctAnswer: string;
   incorrectAnswers: string[];
   allAnswers: string[];
 }
-
-export type ClientMessage =
-  | {
-      type: "create_room";
-      name: string;
-    }
-  | {
-      type: "join_room";
-      code: string;
-      name: string;
-    }
-  | {
-      type: "answer";
-      answerIndex: number;
-    }
-  | {
-      type: "leave_room";
-    };
 
 export type ServerMessage =
   | {

@@ -5,90 +5,63 @@ exports.getRoomByCode = getRoomByCode;
 exports.joinRoom = joinRoom;
 exports.getOpponent = getOpponent;
 exports.removePlayerFromRoom = removePlayerFromRoom;
-exports.resetPlayerAnswers = resetPlayerAnswers;
 const rooms = new Map();
-const ROOM_CODE_LENGTH = 6;
-const ROOM_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+// Generar codi de sala de 6 caràcters
 function generateRoomCode() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let code = "";
-    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-        const randomIndex = Math.floor(Math.random() * ROOM_CODE_CHARS.length);
-        code += ROOM_CODE_CHARS[randomIndex];
+    for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
     }
     return code;
 }
-function generateUniqueRoomCode() {
+// Crear una nova sala
+function createRoom(host) {
     let code = generateRoomCode();
     while (rooms.has(code)) {
         code = generateRoomCode();
     }
-    return code;
-}
-function createRoom(host) {
-    const code = generateUniqueRoomCode();
     const room = {
         code,
         host,
         guest: null,
         status: "waiting",
         questionsAsked: 0,
-        hostAnswered: false,
-        guestAnswered: false,
+        hostCorrectIndex: -1,
+        guestCorrectIndex: -1,
     };
     host.roomCode = code;
     host.score = 0;
     rooms.set(code, room);
     return room;
 }
+// Obtenir sala per codi
 function getRoomByCode(code) {
     return rooms.get(code);
 }
+// Unir-se a una sala
 function joinRoom(code, guest) {
     const room = rooms.get(code);
-    if (!room) {
-        return null;
-    }
-    if (room.guest) {
+    if (!room || room.guest) {
         return null;
     }
     room.guest = guest;
-    room.status = "playing";
     guest.roomCode = code;
     guest.score = 0;
     return room;
 }
+// Obtenir l'altre jugador
 function getOpponent(room, playerId) {
-    if (room.host.id === playerId) {
+    if (room.host.id === playerId)
         return room.guest;
-    }
-    if (room.guest && room.guest.id === playerId) {
+    if (room.guest?.id === playerId)
         return room.host;
-    }
     return null;
 }
-function removePlayerFromRoom(player) {
-    if (!player.roomCode) {
-        return null;
+// Eliminar jugador de la sala
+function removePlayerFromRoom(playerId) {
+    const room = Array.from(rooms.values()).find((r) => r.host.id === playerId || r.guest?.id === playerId);
+    if (room) {
+        rooms.delete(room.code);
     }
-    const room = rooms.get(player.roomCode);
-    if (!room) {
-        player.roomCode = null;
-        return null;
-    }
-    if (room.host.id === player.id) {
-        room.status = "finished";
-        rooms.delete(player.roomCode);
-        return room;
-    }
-    if (room.guest && room.guest.id === player.id) {
-        room.status = "finished";
-        rooms.delete(player.roomCode);
-        return room;
-    }
-    player.roomCode = null;
-    return null;
-}
-function resetPlayerAnswers(room) {
-    room.hostAnswered = false;
-    room.guestAnswered = false;
 }

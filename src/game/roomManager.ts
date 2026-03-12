@@ -2,36 +2,31 @@
 
 const rooms = new Map<string, Room>();
 
-const lengthCodigo = 6;
-const caracteresCodigo = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-function generarRoomCode(): string {
-  let codigo = "";
-  for (let i = 0; i < lengthCodigo; i++) {
-    const numRandom = Math.floor(Math.random() * caracteresCodigo.length);
-    codigo += caracteresCodigo[numRandom];
-  }
-  return codigo;
-}
-
-function comprobarRooms(): string {
-  let code = generarRoomCode();
-  while (rooms.has(code)) {
-    code = generarRoomCode();
+// Generar codi de sala de 6 caràcters
+function generateRoomCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
 }
 
-export function crearRoom(host: Player): Room {
-  const code = comprobarRooms();
+// Crear una nova sala
+export function createRoom(host: Player): Room {
+  let code = generateRoomCode();
+  while (rooms.has(code)) {
+    code = generateRoomCode();
+  }
+
   const room: Room = {
     code,
     host,
     guest: null,
     status: "waiting",
     questionsAsked: 0,
-    hostAnswered: false,
-    guestAnswered: false,
+    hostCorrectIndex: -1,
+    guestCorrectIndex: -1,
   };
 
   host.roomCode = code;
@@ -40,64 +35,38 @@ export function crearRoom(host: Player): Room {
   return room;
 }
 
+// Obtenir sala per codi
 export function getRoomByCode(code: string): Room | undefined {
   return rooms.get(code);
 }
 
-export function unirRoom(code: string, guest: Player): Room | null {
+// Unir-se a una sala
+export function joinRoom(code: string, guest: Player): Room | null {
   const room = rooms.get(code);
-  if (!room) {
-    return null;
-  }
-  if (room.guest) {
+  if (!room || room.guest) {
     return null;
   }
 
   room.guest = guest;
-  room.status = "playing";
   guest.roomCode = code;
   guest.score = 0;
   return room;
 }
 
+// Obtenir l'altre jugador
 export function getOpponent(room: Room, playerId: string): Player | null {
-  if (room.host.id === playerId) {
-    return room.guest;
-  }
-  if (room.guest && room.guest.id === playerId) {
-    return room.host;
-  }
+  if (room.host.id === playerId) return room.guest;
+  if (room.guest?.id === playerId) return room.host;
   return null;
 }
 
-export function removePlayerFromRoom(player: Player): Room | null {
-  if (!player.roomCode) {
-    return null;
+// Eliminar jugador de la sala
+export function removePlayerFromRoom(playerId: string): void {
+  const room = Array.from(rooms.values()).find(
+    (r) => r.host.id === playerId || r.guest?.id === playerId
+  );
+
+  if (room) {
+    rooms.delete(room.code);
   }
-
-  const room = rooms.get(player.roomCode);
-  if (!room) {
-    player.roomCode = null;
-    return null;
-  }
-
-  if (room.host.id === player.id) {
-    room.status = "finished";
-    rooms.delete(player.roomCode);
-    return room;
-  }
-
-  if (room.guest && room.guest.id === player.id) {
-    room.status = "finished";
-    rooms.delete(player.roomCode);
-    return room;
-  }
-
-  player.roomCode = null;
-  return null;
-}
-
-export function resetPlayerAnswers(room: Room): void {
-  room.hostAnswered = false;
-  room.guestAnswered = false;
 }
