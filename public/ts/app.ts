@@ -29,7 +29,7 @@ const endGoMenuBtn = document.getElementById("endGoMenuBtn");
 
 const answerButtons = Array.from(document.querySelectorAll(".answer-btn")) as HTMLButtonElement[];
 
-// Estat del joc
+//Estat del joc i connexió
 let state = {
   roomCode: "",
   playerName: "",
@@ -45,8 +45,8 @@ let state = {
 
 let ws: WebSocket | null = null;
 
-// Connectar amb el servidor
-function connectSocket() {
+//Conectar al servicor utilitzant WebSocket
+function conectarSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
@@ -56,7 +56,7 @@ function connectSocket() {
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    handleMessage(data);
+    handleMissatge(data);
   };
 
   ws.onclose = () => {
@@ -64,8 +64,8 @@ function connectSocket() {
   };
 }
 
-// Enviar missatge al servidor
-function sendMessage(message: any) {
+//Enviar el missatge al servior
+function enviarMissatge(message: any) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     menuError!.textContent = "No connectat al servidor";
     return;
@@ -73,8 +73,8 @@ function sendMessage(message: any) {
   ws.send(JSON.stringify(message));
 }
 
-// Processar missatges del servidor
-function handleMessage(data: any) {
+//Procesar missatges del servidor
+function handleMissatge(data: any) {
   switch (data.type) {
     case "connected":
       state.playerId = data.playerId;
@@ -85,7 +85,7 @@ function handleMessage(data: any) {
       state.playerName = data.playerName;
       roomCodeBox!.textContent = data.code;
       lobbyStatus!.textContent = "Esperant oponent...";
-      showScreen(lobbyScreen);
+      mostrarPerPantalla(lobbyScreen);
       break;
 
     case "room_joined":
@@ -93,7 +93,7 @@ function handleMessage(data: any) {
       state.playerName = data.playerName;
       roomCodeBox!.textContent = data.code;
       lobbyStatus!.textContent = "Afegit! Esperant que comenci...";
-      showScreen(lobbyScreen);
+      mostrarPerPantalla(lobbyScreen);
       break;
 
     case "player_joined":
@@ -109,27 +109,27 @@ function handleMessage(data: any) {
       state.playerScore = 0;
       state.opponentScore = 0;
       state.locked = false;
-      updateBoard();
-      showScreen(gameScreen);
+      actualitzarTaula();
+      mostrarPerPantalla(gameScreen);
       break;
 
     case "new_question":
       state.locked = false;
       state.currentQuestion = data.question;
       state.answers = data.answers;
-      updateBoard();
+      actualitzarTaula();
       break;
 
     case "answer_result":
       state.playerScore = data.playerScore;
       state.opponentScore = data.opponentScore;
-      updateBoard();
+      actualitzarTaula();
       break;
 
     case "score_update":
       state.playerScore = data.playerScore;
       state.opponentScore = data.opponentScore;
-      updateBoard();
+      actualitzarTaula();
       break;
 
     case "game_over":
@@ -148,17 +148,17 @@ function handleMessage(data: any) {
   }
 }
 
-// Mostrar pantalla
-function showScreen(screen: HTMLElement | null) {
+//Mostrar el menú, lobby o pantalla de joc segons el que toqui
+function mostrarPerPantalla(screen: HTMLElement | null) {
   [menuScreen, lobbyScreen, gameScreen].forEach((s) => {
     s?.classList.remove("active");
   });
   screen?.classList.add("active");
 }
 
-// Actualitzar taula de joc
-function updateBoard() {
-  // Mostrar puntuació (estreles)
+//Actualitzar la taula de joc amb l'estat actual (puntuació, pregunta, respostes, etc)
+function actualitzarTaula() {
+  //Mostrar els quesitos de puntuació
   playerProgress!.innerHTML = "";
   for (let i = 0; i < 8; i++) {
     const wedge = document.createElement("div");
@@ -187,20 +187,20 @@ function updateBoard() {
   });
 }
 
-// Respondre pregunta
+//Enviar la resposta seleccionada al servidor
 function submitAnswer(index: number) {
   if (state.locked || state.gameEnded) return;
 
   state.locked = true;
-  updateBoard();
+  actualitzarTaula();
 
-  sendMessage({
+  enviarMissatge({
     type: "answer",
     answerIndex: index,
   });
 }
 
-// Botons
+//MARK IMPORTANTE Aquí se gestionan los eventos de los botones para crear/join sala, enviar respuestas, volver al menú, etc
 createRoomBtn?.addEventListener("click", () => {
   const name = playerNameInput.value.trim();
   if (!name) {
@@ -209,13 +209,14 @@ createRoomBtn?.addEventListener("click", () => {
   }
 
   menuError!.textContent = "";
-  connectSocket();
+  conectarSocket();
 
   setTimeout(() => {
-    sendMessage({ type: "create_room", name });
+    enviarMissatge({ type: "create_room", name });
   }, 500);
 });
 
+//Unirse a una sala existent utilitzant el codi de sala i el nom del jugador
 joinRoomBtn?.addEventListener("click", () => {
   const name = playerNameInput.value.trim();
   const code = roomCodeInput.value.trim().toUpperCase();
@@ -226,20 +227,21 @@ joinRoomBtn?.addEventListener("click", () => {
   }
 
   menuError!.textContent = "";
-  connectSocket();
+  conectarSocket();
 
   setTimeout(() => {
-    sendMessage({ type: "join_room", code, name });
+    enviarMissatge({ type: "join_room", code, name });
   }, 500);
 });
 
+//Enviar la resposta seleccionada al servidor
 answerButtons.forEach((btn, i) => {
   btn.addEventListener("click", () => submitAnswer(i));
 });
 
 backToMenuBtn?.addEventListener("click", () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    sendMessage({ type: "leave_room" });
+    enviarMissatge({ type: "leave_room" });
   }
   state = {
     roomCode: "",
@@ -255,14 +257,14 @@ backToMenuBtn?.addEventListener("click", () => {
   };
   menuError!.textContent = "";
   endModal!.classList.add("hidden");
-  updateBoard();
-  showScreen(menuScreen);
+  actualitzarTaula();
+  mostrarPerPantalla(menuScreen);
 });
 
 endGoMenuBtn?.addEventListener("click", () => {
   backToMenuBtn?.click();
 });
 
-updateBoard();
+actualitzarTaula();
 
 export {};
