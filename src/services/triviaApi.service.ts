@@ -11,7 +11,7 @@ function barajarRespuestas(array: string[]): string[] {
   return respuestas;
 }
 
-// Obtenir pregunta random de la API
+// Obtenir pregunta random de la APIi
 export async function preguntaRandom(): Promise<Question> {
   try {
     //alvaro aqui pillo directamente una pregunta random desde la api
